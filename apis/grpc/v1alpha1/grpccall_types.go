@@ -88,7 +88,7 @@ type GrpcCallStatus struct {
 // +kubebuilder:printcolumn:name="METHOD",type="string",JSONPath=".spec.forProvider.methodName"
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:scope=Cluster,categories={crossplane,managed,grpc}
+// +kubebuilder:resource:scope=Namespaced,categories={crossplane,managed,grpc}
 type GrpcCall struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

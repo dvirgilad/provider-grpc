@@ -2,6 +2,7 @@ apiVersion: grpc.template.crossplane.io/v1alpha1
 kind: GrpcCall
 metadata:
   name: create-product-call
+  namespace: default
 spec:
   forProvider:
     serviceName: "inventory.InventoryService"

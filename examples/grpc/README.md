@@ -62,6 +62,7 @@ apiVersion: grpc.template.crossplane.io/v1alpha1
 kind: GrpcCall
 metadata:
   name: hello-call
+  namespace: default
 spec:
   forProvider:
     serviceName: "helloworld.Greeter"
@@ -134,6 +135,7 @@ apiVersion: grpc.template.crossplane.io/v1alpha1
 kind: GrpcCall
 metadata:
   name: my-call
+  namespace: default
 spec:
   forProvider:
     serviceName: "package.ServiceName"  # Fully qualified service name

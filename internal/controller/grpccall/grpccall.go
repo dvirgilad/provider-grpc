@@ -184,7 +184,7 @@ func (c *connector) getContentFromConfigMap(ctx context.Context, configMapRef *a
 
 // An ExternalClient observes, then either creates, updates, or deletes an external resource.
 type external struct {
-	client *grpcclient.Client
+	client grpcclient.GRPCClient
 	kube   client.Client
 }
 

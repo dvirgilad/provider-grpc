@@ -38,6 +38,13 @@ import (
 	"github.com/crossplane/provider-template/apis/v1alpha1"
 )
 
+// GRPCClient defines the interface for GRPC operations
+type GRPCClient interface {
+	CallMethod(ctx context.Context, serviceName, methodName string, requestData runtime.RawExtension, headers map[string]string, timeout *int32) (*CallResult, error)
+	ValidateMethod(serviceName, methodName string) error
+	Close() error
+}
+
 // Client represents a GRPC client with protobuf support.
 type Client struct {
 	conn     *grpc.ClientConn

@@ -1,0 +1,18 @@
+apiVersion: grpc.template.crossplane.io/v1alpha1
+kind: GrpcCall
+metadata:
+  name: create-product-call
+spec:
+  forProvider:
+    serviceName: "inventory.InventoryService"
+    methodName: "CreateProduct"
+    requestData:
+      name: "Gaming Laptop"
+      description: "High-performance laptop for gaming"
+      price: 1299.99
+      quantity: 10
+    headers:
+      authorization: "Bearer token123"
+      content-type: "application/grpc+proto"
+  providerConfigRef:
+    name: grpc-tls-provider-config

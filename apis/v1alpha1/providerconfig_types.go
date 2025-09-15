@@ -29,6 +29,12 @@ import (
 type ProviderConfigSpec struct {
 	// Credentials required to authenticate to this provider.
 	Credentials ProviderCredentials `json:"credentials"`
+
+	// GrpcServerConfig defines the GRPC server connection configuration.
+	GrpcServerConfig GrpcServerConfig `json:"grpcServerConfig"`
+
+	// ProtobufConfig defines the protobuf file configuration.
+	ProtobufConfig ProtobufConfig `json:"protobufConfig"`
 }
 
 // ProviderCredentials required to authenticate.
@@ -38,6 +44,103 @@ type ProviderCredentials struct {
 	Source xpv1.CredentialsSource `json:"source"`
 
 	xpv1.CommonCredentialSelectors `json:",inline"`
+}
+
+// GrpcServerConfig defines GRPC server connection details.
+type GrpcServerConfig struct {
+	// Host is the GRPC server hostname or IP address.
+	Host string `json:"host"`
+
+	// Port is the GRPC server port.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	Port int32 `json:"port"`
+
+	// TLS configuration for the GRPC connection.
+	// +optional
+	TLS *TLSConfig `json:"tls,omitempty"`
+
+	// Timeout for GRPC calls in seconds.
+	// +optional
+	// +kubebuilder:default=30
+	Timeout *int32 `json:"timeout,omitempty"`
+}
+
+// TLSConfig defines TLS configuration for GRPC connections.
+type TLSConfig struct {
+	// Enabled indicates whether TLS should be used.
+	// +kubebuilder:default=true
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// InsecureSkipVerify skips TLS certificate verification.
+	// +optional
+	InsecureSkipVerify *bool `json:"insecureSkipVerify,omitempty"`
+
+	// ServerName for TLS verification.
+	// +optional
+	ServerName *string `json:"serverName,omitempty"`
+}
+
+// ProtobufConfig defines protobuf file configuration.
+type ProtobufConfig struct {
+	// Source of the protobuf file.
+	// +kubebuilder:validation:Enum=Secret;ConfigMap;Inline
+	Source ProtobufSource `json:"source"`
+
+	// SecretRef references a secret containing the protobuf file.
+	// Required when source is Secret.
+	// +optional
+	SecretRef *SecretKeySelector `json:"secretRef,omitempty"`
+
+	// ConfigMapRef references a configmap containing the protobuf file.
+	// Required when source is ConfigMap.
+	// +optional
+	ConfigMapRef *ConfigMapKeySelector `json:"configMapRef,omitempty"`
+
+	// Inline protobuf content.
+	// Required when source is Inline.
+	// +optional
+	Inline *string `json:"inline,omitempty"`
+}
+
+// ProtobufSource represents the source of protobuf configuration.
+type ProtobufSource string
+
+const (
+	// ProtobufSourceSecret indicates protobuf is stored in a Secret.
+	ProtobufSourceSecret ProtobufSource = "Secret"
+
+	// ProtobufSourceConfigMap indicates protobuf is stored in a ConfigMap.
+	ProtobufSourceConfigMap ProtobufSource = "ConfigMap"
+
+	// ProtobufSourceInline indicates protobuf is provided inline.
+	ProtobufSourceInline ProtobufSource = "Inline"
+)
+
+// SecretKeySelector selects a key from a Secret.
+type SecretKeySelector struct {
+	// Name of the Secret.
+	Name string `json:"name"`
+
+	// Key to select from the Secret.
+	Key string `json:"key"`
+
+	// Namespace of the Secret.
+	// +optional
+	Namespace *string `json:"namespace,omitempty"`
+}
+
+// ConfigMapKeySelector selects a key from a ConfigMap.
+type ConfigMapKeySelector struct {
+	// Name of the ConfigMap.
+	Name string `json:"name"`
+
+	// Key to select from the ConfigMap.
+	Key string `json:"key"`
+
+	// Namespace of the ConfigMap.
+	// +optional
+	Namespace *string `json:"namespace,omitempty"`
 }
 
 // A ProviderConfigStatus reflects the observed state of a ProviderConfig.

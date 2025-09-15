@@ -103,8 +103,99 @@ spec:
                 required:
                 - source
                 type: object
+              grpcServerConfig:
+                description: GrpcServerConfig defines the GRPC server connection configuration.
+                properties:
+                  host:
+                    description: Host is the GRPC server hostname or IP address.
+                    type: string
+                  port:
+                    description: Port is the GRPC server port.
+                    format: int32
+                    maximum: 65535
+                    minimum: 1
+                    type: integer
+                  timeout:
+                    default: 30
+                    description: Timeout for GRPC calls in seconds.
+                    format: int32
+                    type: integer
+                  tls:
+                    description: TLS configuration for the GRPC connection.
+                    properties:
+                      enabled:
+                        default: true
+                        description: Enabled indicates whether TLS should be used.
+                        type: boolean
+                      insecureSkipVerify:
+                        description: InsecureSkipVerify skips TLS certificate verification.
+                        type: boolean
+                      serverName:
+                        description: ServerName for TLS verification.
+                        type: string
+                    type: object
+                required:
+                - host
+                - port
+                type: object
+              protobufConfig:
+                description: ProtobufConfig defines the protobuf file configuration.
+                properties:
+                  configMapRef:
+                    description: |-
+                      ConfigMapRef references a configmap containing the protobuf file.
+                      Required when source is ConfigMap.
+                    properties:
+                      key:
+                        description: Key to select from the ConfigMap.
+                        type: string
+                      name:
+                        description: Name of the ConfigMap.
+                        type: string
+                      namespace:
+                        description: Namespace of the ConfigMap.
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  inline:
+                    description: |-
+                      Inline protobuf content.
+                      Required when source is Inline.
+                    type: string
+                  secretRef:
+                    description: |-
+                      SecretRef references a secret containing the protobuf file.
+                      Required when source is Secret.
+                    properties:
+                      key:
+                        description: Key to select from the Secret.
+                        type: string
+                      name:
+                        description: Name of the Secret.
+                        type: string
+                      namespace:
+                        description: Namespace of the Secret.
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  source:
+                    description: Source of the protobuf file.
+                    enum:
+                    - Secret
+                    - ConfigMap
+                    - Inline
+                    type: string
+                required:
+                - source
+                type: object
             required:
             - credentials
+            - grpcServerConfig
+            - protobufConfig
             type: object
           status:
             description: A ProviderConfigStatus reflects the observed state of a ProviderConfig.

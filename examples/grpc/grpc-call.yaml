@@ -1,0 +1,18 @@
+apiVersion: grpc.template.crossplane.io/v1alpha1
+kind: GrpcCall
+metadata:
+  name: hello-world-call
+  namespace: default
+  annotations:
+    crossplane.io/external-name: hello-world-call
+spec:
+  forProvider:
+    serviceName: "helloworld.Greeter"
+    methodName: "SayHello"
+    requestData:
+      name: "World"
+    headers:
+      user-agent: "crossplane-grpc-provider/1.0"
+    timeout: 10
+  providerConfigRef:
+    name: grpc-provider-config

@@ -1,0 +1,21 @@
+apiVersion: template.crossplane.io/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: grpc-tls-provider-config
+spec:
+  credentials:
+    source: None
+  grpcServerConfig:
+    host: "grpc.example.com"
+    port: 443
+    timeout: 30
+    tls:
+      enabled: true
+      serverName: "grpc.example.com"
+      insecureSkipVerify: false
+  protobufConfig:
+    source: Secret
+    secretRef:
+      name: grpc-proto-secret
+      key: service.proto
+      namespace: default

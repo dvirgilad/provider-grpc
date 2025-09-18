@@ -1,0 +1,32 @@
+apiVersion: template.crossplane.io/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: grpc-provider-config
+spec:
+  credentials:
+    source: None
+  grpcServerConfig:
+    host: "localhost"
+    port: 50051
+    timeout: 30
+    tls:
+      enabled: false
+  protobufConfig:
+    source: Inline
+    inline: |
+      syntax = "proto3";
+      
+      package helloworld;
+      
+      service Greeter {
+        rpc SayHello (HelloRequest) returns (HelloReply) {}
+        rpc SayHelloAgain (HelloRequest) returns (HelloReply) {}
+      }
+      
+      message HelloRequest {
+        string name = 1;
+      }
+      
+      message HelloReply {
+        string message = 1;
+      }

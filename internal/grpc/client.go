@@ -24,9 +24,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/jhump/protoreflect/desc"
-	"github.com/jhump/protoreflect/desc/protoparse"
-	"github.com/jhump/protoreflect/dynamic"
+	"github.com/jhump/protoreflect/desc"            //nolint:staticcheck // Using this deprecated package for now
+	"github.com/jhump/protoreflect/desc/protoparse" //nolint:staticcheck // Using this deprecated package for now
+	"github.com/jhump/protoreflect/dynamic"         //nolint:staticcheck // Using this deprecated package for now
 	"github.com/jhump/protoreflect/dynamic/grpcdynamic"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
@@ -66,6 +66,29 @@ func NewClient(ctx context.Context, config *v1alpha1.GrpcServerConfig, protobufC
 		return nil, errors.New("grpc server config is required")
 	}
 
+	fileDesc, err := parseProtobufFile()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse protobuf file")
+	}
+
+	conn, err := createGRPCConnection(ctx, config)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create GRPC connection")
+	}
+
+	// Create dynamic stub
+	stub := grpcdynamic.NewStub(conn)
+
+	return &Client{
+		conn:     conn,
+		stub:     stub,
+		fileDesc: fileDesc,
+		config:   config,
+	}, nil
+}
+
+// parseProtobufFile parses the protobuf file and returns the file descriptor
+func parseProtobufFile() (*desc.FileDescriptor, error) {
 	// Parse the protobuf file
 	parser := &protoparse.Parser{
 		ImportPaths: []string{"."},
@@ -100,16 +123,33 @@ message DefaultResponse {
 
 	fileDescs, err := parser.ParseFiles(tmpFile)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse protobuf file")
+		return nil, errors.Wrap(err, "failed to parse protobuf files")
 	}
 
 	if len(fileDescs) == 0 {
 		return nil, errors.New("no protobuf file descriptors found")
 	}
 
-	// Create GRPC connection
+	return fileDescs[0], nil
+}
+
+// createGRPCConnection creates a GRPC connection with the given configuration
+func createGRPCConnection(ctx context.Context, config *v1alpha1.GrpcServerConfig) (*grpc.ClientConn, error) {
 	address := fmt.Sprintf("%s:%d", config.Host, config.Port)
 
+	opts := buildDialOptions(config)
+
+	//nolint:staticcheck // Will update when upgrading to newer GRPC version
+	conn, err := grpc.DialContext(ctx, address, opts...)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to dial GRPC server")
+	}
+
+	return conn, nil
+}
+
+// buildDialOptions builds GRPC dial options based on the configuration
+func buildDialOptions(config *v1alpha1.GrpcServerConfig) []grpc.DialOption {
 	var opts []grpc.DialOption
 
 	// Configure TLS
@@ -130,25 +170,42 @@ message DefaultResponse {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
-	//nolint:staticcheck // Will update when upgrading to newer GRPC version
-	conn, err := grpc.DialContext(ctx, address, opts...)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to connect to GRPC server")
-	}
-
-	// Create dynamic stub
-	stub := grpcdynamic.NewStub(conn)
-
-	return &Client{
-		conn:     conn,
-		stub:     stub,
-		fileDesc: fileDescs[0],
-		config:   config,
-	}, nil
+	return opts
 }
 
 // CallMethod invokes a GRPC method with the given parameters.
 func (c *Client) CallMethod(ctx context.Context, serviceName, methodName string, requestData runtime.RawExtension, headers map[string]string, timeout *int32) (*CallResult, error) {
+	methodDesc, err := c.findMethodDescriptor(serviceName, methodName)
+	if err != nil {
+		return nil, err
+	}
+
+	requestMsg, err := c.prepareRequestMessage(methodDesc, requestData)
+	if err != nil {
+		return nil, err
+	}
+
+	callCtx, cancel := c.setupCallContext(ctx, timeout)
+	defer cancel()
+
+	// Add headers to context
+	if len(headers) > 0 {
+		md := metadata.New(headers)
+		callCtx = metadata.NewOutgoingContext(callCtx, md)
+	}
+
+	// Make the call
+	var responseHeaders metadata.MD
+	responseMsg, err := c.stub.InvokeRpc(callCtx, methodDesc, requestMsg, grpc.Header(&responseHeaders))
+	if err != nil {
+		return nil, errors.Wrap(err, "GRPC call failed")
+	}
+
+	return c.processResponse(methodDesc, responseMsg, responseHeaders)
+}
+
+// findMethodDescriptor finds and returns the method descriptor for the given service and method
+func (c *Client) findMethodDescriptor(serviceName, methodName string) (*desc.MethodDescriptor, error) {
 	// Find the service descriptor
 	serviceDesc := c.fileDesc.FindService(serviceName)
 	if serviceDesc == nil {
@@ -161,6 +218,11 @@ func (c *Client) CallMethod(ctx context.Context, serviceName, methodName string,
 		return nil, errors.Errorf("method %s not found in service %s", methodName, serviceName)
 	}
 
+	return methodDesc, nil
+}
+
+// prepareRequestMessage creates and populates the request message from JSON data
+func (c *Client) prepareRequestMessage(methodDesc *desc.MethodDescriptor, requestData runtime.RawExtension) (*dynamic.Message, error) {
 	// Create dynamic message for request
 	requestMsgDesc := methodDesc.GetInputType()
 	requestMsg := dynamic.NewMessage(requestMsgDesc)
@@ -182,33 +244,23 @@ func (c *Client) CallMethod(ctx context.Context, serviceName, methodName string,
 		}
 	}
 
-	// Set up context with timeout
-	var callCtx context.Context
-	var cancel context.CancelFunc
+	return requestMsg, nil
+}
 
+// setupCallContext creates a context with appropriate timeout
+func (c *Client) setupCallContext(ctx context.Context, timeout *int32) (context.Context, context.CancelFunc) {
 	switch {
 	case timeout != nil:
-		callCtx, cancel = context.WithTimeout(ctx, time.Duration(*timeout)*time.Second)
+		return context.WithTimeout(ctx, time.Duration(*timeout)*time.Second)
 	case c.config.Timeout != nil:
-		callCtx, cancel = context.WithTimeout(ctx, time.Duration(*c.config.Timeout)*time.Second)
+		return context.WithTimeout(ctx, time.Duration(*c.config.Timeout)*time.Second)
 	default:
-		callCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
+		return context.WithTimeout(ctx, 30*time.Second)
 	}
-	defer cancel()
+}
 
-	// Add headers to context
-	if len(headers) > 0 {
-		md := metadata.New(headers)
-		callCtx = metadata.NewOutgoingContext(callCtx, md)
-	}
-
-	// Make the call
-	var responseHeaders metadata.MD
-	responseMsg, err := c.stub.InvokeRpc(callCtx, methodDesc, requestMsg, grpc.Header(&responseHeaders))
-	if err != nil {
-		return nil, errors.Wrap(err, "GRPC call failed")
-	}
-
+// processResponse converts the GRPC response to CallResult
+func (c *Client) processResponse(methodDesc *desc.MethodDescriptor, responseMsg interface{}, responseHeaders metadata.MD) (*CallResult, error) {
 	// Convert response to JSON
 	responseDynamic, ok := responseMsg.(*dynamic.Message)
 	if !ok {
